@@ -1,0 +1,11 @@
+[project]
+name = "ptycho-simulation-factory"
+version = "0.1.0"
+description = "Ptychography simulator based on Pty-Chi."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "h5py>=3.14.0",
+    "ptychi>=1.1.0",
+    "scikit-image>=0.25.2",
+]
