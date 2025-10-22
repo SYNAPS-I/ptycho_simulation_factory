@@ -6,5 +6,16 @@ dist/
 wheels/
 *.egg-info
 
+*.json
+
 # Virtual environments
 .venv
+
+# Images
+*.png
+*.tiff
+
+# Data
+outputs/
+data/
+workspace/

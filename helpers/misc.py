@@ -1,6 +1,7 @@
 import datetime
 from typing import MutableMapping
 import dataclasses
+import os
 
 import numpy as np
 import torch
@@ -50,3 +51,17 @@ def serialize_dict(d):
         elif isinstance(v, torch.Tensor):
             d[k] = v.detach().cpu().numpy().tolist()
     return d
+
+
+def get_config_without_classname(config: dict) -> dict:
+    return {k: v for k, v in config.items() if k != "class_name"}
+
+
+def detect_launcher() -> str | None:
+    env = os.environ
+    if "GROUP_RANK" in env or "ROLE_RANK" in env or "LOCAL_WORLD_SIZE" in env:
+        return "torchrun"
+    elif "RANK" in env and "WORLD_SIZE" in env and "LOCAL_RANK" in env:
+        return "launch"
+    else:
+        return None

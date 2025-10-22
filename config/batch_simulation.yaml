@@ -1,0 +1,21 @@
+object_dataset:
+    class_name: "ImageNet"
+    raw_data_root: "data/raw/ImageNet"
+    random_min_mag_range: [0.8, 0.98]
+    random_phase_range: [0.8, 1.8]
+
+probe_dataset:
+    class_name: "ProbeDataset"
+    raw_data_root: "data/raw/ProbeDataset"
+
+position_generator:
+    class_name: "RasterGridGenerator"
+    spacing_x: 10
+    spacing_y: 10
+
+simulator:
+    pixel_size_m: 1e-8
+    energy_kev: 10
+
+task:
+    output_root: "output/"
