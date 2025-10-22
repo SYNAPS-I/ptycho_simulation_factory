@@ -56,6 +56,9 @@ class NpyProbeDataset(ProbeDataset):
         """Create a list of all probe files in the root directory.
         """
         return glob.glob(os.path.join(self.root_dir, "*.npy"), recursive=recursive)
+    
+    def __len__(self):
+        return len(self.index)
         
     def __getitem__(self, index) -> tuple[np.ndarray, str]:
         """Get the probe and its name at the given index.
