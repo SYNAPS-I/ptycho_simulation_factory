@@ -1,5 +1,6 @@
 import os
 import argparse
+import logging
 
 import torch
 import numpy as np
@@ -11,6 +12,8 @@ from simulator import PtychographySimulator
 import grid_generator
 import dataset
 from helpers.misc import get_config_without_classname
+
+logger = logging.getLogger(__name__)
 
 
 class BatchSimulationTask(MultiprocessMixin):
@@ -78,6 +81,9 @@ class BatchSimulationTask(MultiprocessMixin):
             positions = position_generator.generate_positions(
                 object.shape[-2:], probe.shape[-2:]
             )
+            if len(positions) < 4:
+                logger.warning(f"Skipping {name} because only {len(positions)} positions generated")
+                continue
             
             if probe.shape[0] == 1:
                 opr_weights = np.ones(len(positions), 1)

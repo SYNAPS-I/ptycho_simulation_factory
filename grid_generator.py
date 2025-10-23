@@ -105,6 +105,9 @@ class RasterGridGenerator(GridGenerator):
         else:
             assert self.spacing_x is not None
             x = np.arange(margin[1], object_shape[1] - margin[1] - 1, self.spacing_x)
+        
+        if len(x) == 0 or len(y) == 0:
+            return []
         y, x = np.meshgrid(y, x, indexing="ij")
         positions = np.stack([y.reshape(-1), x.reshape(-1)], axis=1)
         positions = positions - positions.mean(0)
