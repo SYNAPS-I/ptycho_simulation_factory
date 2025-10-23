@@ -1,10 +1,13 @@
 import os
 import glob
+import logging
 
 import numpy as np
 from PIL import Image
 
 from helpers.image_helpers import create_complex_object
+
+logger = logging.getLogger(__name__)
 
 
 class Dataset:
@@ -16,6 +19,16 @@ class Dataset:
     
 
 class ObjectDataset(Dataset):
+    def __init__(
+        self, 
+        random_min_mag_range: tuple[float, float] = (0.5, 1.0),
+        random_phase_range: tuple[float, float] = (0.0, 2.0),
+        *args, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self.random_min_mag_range = random_min_mag_range
+        self.random_phase_range = random_phase_range
+    
     def __getitem__(self, index) -> tuple[np.ndarray, str]:
         """Get the object and its name at the given index.
         
@@ -34,10 +47,51 @@ class ObjectDataset(Dataset):
 
 class ImageNetObjectDataset(ObjectDataset):
     def __init__(
-        self, root_dir: str, *args, **kwargs
+        self, 
+        root_dir: str, 
+        random_min_mag_range: tuple[float, float] = (0.5, 1.0),
+        random_phase_range: tuple[float, float] = (0.0, 2.0),
+        *args, **kwargs
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            random_min_mag_range=random_min_mag_range,
+            random_phase_range=random_phase_range,
+            *args, **kwargs
+        )
         self.root_dir = root_dir
+        self.index = self.create_index()
+        
+    def create_index(self, recursive: bool = True) -> list[str]:
+        """Create a list of all object files in the root directory.
+        """
+        if os.path.exists(os.path.join(self.root_dir, "index.txt")):
+            logger.info(f"Loading index for ImageNetObjectDataset from {os.path.join(self.root_dir, 'index.txt')}")
+            with open(os.path.join(self.root_dir, "index.txt"), "r") as f:
+                return [line.strip() for line in f.readlines()]
+        else:
+            logger.info(f"Creating index for ImageNetObjectDataset in {self.root_dir}")
+            index = glob.glob(os.path.join(self.root_dir, "**", "*.JPEG"), recursive=recursive)
+            with open(os.path.join(self.root_dir, "index.txt"), "w") as f:
+                for item in index:
+                    f.write(item + "\n")
+            return index
+    
+    def __len__(self):
+        return len(self.index)
+    
+    def __getitem__(self, index) -> tuple[np.ndarray, str]:
+        """Get the object and its name at the given index.
+        """
+        obj = Image.open(self.index[index])
+        obj = np.array(obj)
+        if obj.ndim == 3:
+            obj = obj.mean(axis=-1)
+        obj = obj[None, ...]
+        
+        min_mag = np.random.uniform(*self.random_min_mag_range)
+        phase_range = np.random.uniform(*self.random_phase_range)
+        obj = create_complex_object(obj, min_mag, phase_range)
+        return obj, os.path.splitext(os.path.basename(self.index[index]))[0]
 
 
 class ProbeDataset(Dataset):
