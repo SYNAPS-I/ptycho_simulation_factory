@@ -111,7 +111,7 @@ class RasterGridGenerator(GridGenerator):
         y, x = np.meshgrid(y, x, indexing="ij")
         positions = np.stack([y.reshape(-1), x.reshape(-1)], axis=1)
         positions = positions - positions.mean(0)
-        positions = positions[::-1]
+        positions = np.flipud(positions).copy()
         self.positions = positions
         return positions
 

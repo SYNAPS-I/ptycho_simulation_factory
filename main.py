@@ -14,6 +14,7 @@ import dataset
 from helpers.misc import get_config_without_classname
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class BatchSimulationTask(MultiprocessMixin):
@@ -34,7 +35,6 @@ class BatchSimulationTask(MultiprocessMixin):
         self.build_parallelism()
         self.build_object_dataset()
         self.build_probe_dataset()
-        self.build_position_generator()
         
     def build_output_dir(self):
         os.makedirs(self.config["task"]["output_root"], exist_ok=True)
@@ -90,18 +90,18 @@ class BatchSimulationTask(MultiprocessMixin):
             else:
                 opr_weights = np.concatenate(
                     [
-                        np.ones(len(positions), 1),
-                        np.zeros(len(positions), probe.shape[0] - 1),
+                        np.ones([len(positions), 1]),
+                        np.zeros([len(positions), probe.shape[0] - 1]),
                     ],
                     axis=1
                 )
             
             sim = PtychographySimulator(
-                object=object,
+                object_=object,
                 probe=probe,
                 positions=positions,
                 opr_weights=opr_weights,
-                pixel_size_m=self.config["simulator"]["pixel_size_m"],
+                pixel_size=self.config["simulator"]["pixel_size_m"],
                 wavelength_m=1.24e-9 / self.config["simulator"]["energy_kev"],
                 output_dir=os.path.join(self.config["task"]["output_root"]),
                 output_file_prefix=name + "_",
