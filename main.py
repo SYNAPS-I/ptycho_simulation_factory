@@ -85,7 +85,7 @@ class BatchSimulationTask(MultiprocessMixin):
     
     def run(self):
         indices = np.arange(len(self.object_dataset))[self.rank::self.n_ranks]
-        pbar = tqdm.tqdm(indices, disable=self.n_ranks > 1)
+        pbar = tqdm.tqdm(indices, desc=f"Rank {self.rank}")
         
         for object_ind in pbar:
             object, name = self.object_dataset[object_ind]
