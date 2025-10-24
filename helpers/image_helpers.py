@@ -115,3 +115,28 @@ def central_crop_or_pad(img: np.ndarray, target_size: tuple[int, int]) -> np.nda
         elif img.shape[-2 + i] < target_size[-2 + i]:
             img = central_pad(img, target_size_current_dim)
     return img
+
+
+def add_poisson_noise(intensity_images: np.ndarray, total_photon_count: int) -> np.ndarray:
+    """
+    Add Poisson noise to intensity images. The original scaling of the intensity
+    is preserved in the output.
+    
+    Parameters
+    ----------
+    intensity_images : np.ndarray
+        The (..., h, w) intensity images to which Poisson noise is added.
+    total_photon_count : int
+        The total photon count of the image.
+    
+    Returns
+    -------
+    np.ndarray
+        The image with Poisson noise added.
+    """
+    powers = np.sum(np.abs(intensity_images), axis=(-2, -1))
+    scaling_factor = total_photon_count / powers
+    intensity_images = intensity_images * scaling_factor[..., None, None]
+    intensity_images = np.random.poisson(intensity_images)
+    intensity_images = intensity_images / scaling_factor[..., None, None]
+    return intensity_images

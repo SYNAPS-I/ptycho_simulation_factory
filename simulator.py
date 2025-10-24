@@ -2,23 +2,20 @@ import os
 from typing import Optional
 
 import numpy as np
-import skimage
 import h5py
-import scipy.ndimage as ndi
 import tqdm
 import tifffile
 import torch
 
 import ptychi.api as api
-from ptychi.utils import generate_initial_opr_mode_weights
 import ptychi.data_structures.object
 import ptychi.data_structures.probe
 import ptychi.data_structures.opr_mode_weights
 import ptychi.data_structures.probe_positions
 import ptychi.data_structures.parameter_group
 import ptychi.forward_models as fm
-import ptychi.image_proc as ip
-import helpers.io_helpers as io_helpers
+
+from helpers.image_helpers import add_poisson_noise
 
 
 class PtychographySimulator:
@@ -36,6 +33,8 @@ class PtychographySimulator:
         output_dir: str = "data",
         output_file_prefix: str = "ptychodus_",
         probe_to_be_in_data_file: Optional[np.ndarray | torch.Tensor] = None,
+        add_poisson_noise: bool = False,
+        total_photon_count: Optional[int] = None,
     ):
         self.object_ = object_
         self.probe = probe
@@ -48,7 +47,9 @@ class PtychographySimulator:
         self.output_dir = output_dir
         self.output_file_prefix = output_file_prefix
         self.probe_to_be_in_data_file = probe_to_be_in_data_file
-
+        self.add_poisson_noise = add_poisson_noise
+        self.total_photon_count = total_photon_count
+        
     def build_forward_model(self):
         options = api.base.ObjectOptions(
             slice_spacings_m=self.slice_spacings_m,
@@ -118,6 +119,10 @@ class PtychographySimulator:
             indices = torch.arange(i_pos, i_end).long()
             intensities = self.forward_model(indices=indices).detach().cpu().numpy()
             intensities = np.fft.fftshift(intensities, axes=(-2, -1))
+            
+            if self.add_poisson_noise:
+                intensities = add_poisson_noise(intensities, self.total_photon_count)
+            
             self.f_dp["dp"][i_pos:i_end] = intensities
             pbar.update(i_end - i_pos)
             i_pos = i_end
