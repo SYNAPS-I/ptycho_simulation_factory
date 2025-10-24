@@ -86,7 +86,7 @@ class BatchSimulationTask(MultiprocessMixin):
                 continue
             
             if probe.shape[0] == 1:
-                opr_weights = np.ones(len(positions), 1)
+                opr_weights = np.ones([len(positions), 1])
             else:
                 opr_weights = np.concatenate(
                     [
