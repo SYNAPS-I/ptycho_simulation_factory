@@ -1,3 +1,4 @@
+from typing import Optional
 import os
 import glob
 import logging
@@ -5,7 +6,7 @@ import logging
 import numpy as np
 from PIL import Image
 
-from helpers.image_helpers import create_complex_object
+from helpers.image_helpers import create_complex_object, central_crop_or_pad
 
 logger = logging.getLogger(__name__)
 
@@ -95,14 +96,34 @@ class ImageNetObjectDataset(ObjectDataset):
 
 
 class ProbeDataset(Dataset):
-    pass
-
+    def __init__(
+        self, 
+        output_shape: Optional[tuple[int, int]] = None, 
+        remove_opr_modes: bool = False,
+        *args, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        if output_shape is not None:
+            assert len(output_shape) == 2, "output_shape must be a tuple of length 2"
+        self.output_shape = output_shape
+        self.remove_opr_modes = remove_opr_modes
+        
 
 class NpyProbeDataset(ProbeDataset):
     def __init__(
-        self, root_dir: str, recursive: bool = True, *args, **kwargs
+        self, 
+        root_dir: str, 
+        output_shape: Optional[tuple[int, int]] = None, 
+        remove_opr_modes: bool = False,
+        recursive: bool = True, 
+        *args, 
+        **kwargs
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            output_shape=output_shape,
+            remove_opr_modes=remove_opr_modes,
+            *args, **kwargs
+        )
         self.root_dir = root_dir
         self.index = self.create_index(recursive)
         
@@ -132,4 +153,8 @@ class NpyProbeDataset(ProbeDataset):
             p = p[None, ...]
         elif p.ndim == 2:
             p = p[None, None, ...]
+        if self.remove_opr_modes:
+            p = p[0:1, ...]
+        if self.output_shape is not None:
+            p = central_crop_or_pad(p, self.output_shape)
         return p

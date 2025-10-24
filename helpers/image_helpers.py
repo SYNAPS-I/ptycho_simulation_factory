@@ -1,3 +1,5 @@
+from typing import Literal
+
 import numpy as np
 
 
@@ -37,3 +39,79 @@ def gaussian_2d(shape, sigma):
     probe = np.exp(-(x ** 2 + y ** 2) / (2 * sigma ** 2))
     probe = probe / probe.max()
     return probe
+
+
+def central_crop(img: np.ndarray, crop_size: tuple[int, int]) -> np.ndarray:
+    """
+    Crop the center of an image.
+    
+    Parameters
+    ----------
+    img : np.ndarray
+        A (..., H, W) array giving the input image(s).
+    crop_size : tuple[int, int]
+        crop size.
+    
+    Returns
+    -------
+    np.ndarray
+        The image cropped to the target size.
+    """
+    return img[
+        ..., 
+        img.shape[-2] // 2 - crop_size[0] // 2 : img.shape[-2] // 2 - crop_size[0] // 2 + crop_size[0], 
+        img.shape[-1] // 2 - crop_size[1] // 2 : img.shape[-1] // 2 - crop_size[1] // 2 + crop_size[1]
+    ]
+
+
+def central_pad(
+    img: np.ndarray, 
+    target_size: tuple[int, int], 
+    mode: Literal["constant", "reflect", "replicate", "circular"] = "constant", 
+    value: float = 0.0
+) -> np.ndarray:
+    """
+    Pad the center of an image.
+    
+    Parameters
+    ----------
+    img : np.ndarray
+        A (..., H, W) array giving the input image(s).
+    target_size : tuple[int, int]
+        target size.
+    
+    Returns
+    -------
+    np.ndarray
+        The image padded to the target size.
+    """
+    pad_size = [(0, 0)] * (img.ndim - 2) + [
+        ((target_size[0] - img.shape[-2]) // 2, target_size[-2] - (target_size[0] - img.shape[-2]) // 2 - img.shape[-2]),
+        ((target_size[1] - img.shape[-1]) // 2, target_size[-1] - (target_size[1] - img.shape[-1]) // 2 - img.shape[-1])
+    ]
+    return np.pad(img, pad_size, mode=mode, constant_values=value)
+
+
+def central_crop_or_pad(img: np.ndarray, target_size: tuple[int, int]) -> np.ndarray:
+    """
+    Crop or pad the center of an image to the target size.
+    
+    Parameters
+    ----------
+    img : np.ndarray
+        A (..., H, W) array giving the input image(s).
+    target_size : tuple[int, int]
+        target size.
+    
+    Returns
+    -------
+    np.ndarray
+        The image cropped or padded to the target size.
+    """
+    for i in range(2):
+        target_size_current_dim = [img.shape[-2]] * (i == 1) + [target_size[i]] + [img.shape[-1]] * (i == 0)
+        if img.shape[-2 + i] > target_size[-2 + i]:
+            img = central_crop(img, target_size_current_dim)
+        elif img.shape[-2 + i] < target_size[-2 + i]:
+            img = central_pad(img, target_size_current_dim)
+    return img
