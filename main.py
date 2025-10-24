@@ -105,6 +105,8 @@ class BatchSimulationTask(MultiprocessMixin):
                 wavelength_m=1.24e-9 / self.config["simulator"]["energy_kev"],
                 output_dir=os.path.join(self.config["task"]["output_root"]),
                 output_file_prefix=name + "_",
+                add_poisson_noise=self.config["simulator"]["add_poisson_noise"],
+                total_photon_count=self.config["simulator"]["total_photon_count"],
             )
             sim.run()
 
