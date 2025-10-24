@@ -21,9 +21,11 @@ class BatchSimulationTask(MultiprocessMixin):
     
     def __init__(
         self,
-        config: dict
+        config: dict,
+        skip_existing: bool = False,
     ) -> None:
         self.config = config
+        self.skip_existing = skip_existing
         
         self.object_dataset = None
         self.probe_dataset = None
@@ -69,12 +71,27 @@ class BatchSimulationTask(MultiprocessMixin):
         probe = self.probe_dataset[ind]
         return probe
     
+    def output_exists(self, name: str) -> bool:
+        return (
+            os.path.exists(self.get_output_dp_path(name)) and 
+            os.path.exists(self.get_output_para_path(name))
+        )
+    
+    def get_output_dp_path(self, name: str) -> str:
+        return os.path.join(self.config["task"]["output_root"], name + "_dp.hdf5")
+    
+    def get_output_para_path(self, name: str) -> str:
+        return os.path.join(self.config["task"]["output_root"], name + "_para.hdf5")
+    
     def run(self):
         indices = np.arange(len(self.object_dataset))[self.rank::self.n_ranks]
         pbar = tqdm.tqdm(indices, disable=self.n_ranks > 1)
         
         for object_ind in pbar:
             object, name = self.object_dataset[object_ind]
+            if self.skip_existing and self.output_exists(name):
+                continue
+            
             probe = self.get_random_probe()
             
             position_generator = self.create_position_generator()
@@ -114,10 +131,15 @@ class BatchSimulationTask(MultiprocessMixin):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=str)
+    parser.add_argument(
+        "--skip-existing", 
+        action="store_true", 
+        help="Skip simulation if output files already exist."
+    )
     args = parser.parse_args()
     
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
         
-    task = BatchSimulationTask(config)
+    task = BatchSimulationTask(config, skip_existing=args.skip_existing)
     task.run()
