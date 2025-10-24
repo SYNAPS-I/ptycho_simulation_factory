@@ -124,6 +124,7 @@ class BatchSimulationTask(MultiprocessMixin):
                 output_file_prefix=name + "_",
                 add_poisson_noise=self.config["simulator"]["add_poisson_noise"],
                 total_photon_count=self.config["simulator"]["total_photon_count"],
+                verbose=False
             )
             sim.run()
 

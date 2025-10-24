@@ -35,6 +35,7 @@ class PtychographySimulator:
         probe_to_be_in_data_file: Optional[np.ndarray | torch.Tensor] = None,
         add_poisson_noise: bool = False,
         total_photon_count: Optional[int] = None,
+        verbose: bool = True,
     ):
         self.object_ = object_
         self.probe = probe
@@ -49,6 +50,7 @@ class PtychographySimulator:
         self.probe_to_be_in_data_file = probe_to_be_in_data_file
         self.add_poisson_noise = add_poisson_noise
         self.total_photon_count = total_photon_count
+        self.verbose = verbose
         
     def build_forward_model(self):
         options = api.base.ObjectOptions(
@@ -113,7 +115,7 @@ class PtychographySimulator:
 
         i_pos = 0
         n_pos = self.positions.shape[0]
-        pbar = tqdm.tqdm(total=n_pos, desc="Simulating")
+        pbar = tqdm.tqdm(total=n_pos, desc="Simulating", disable=not self.verbose)
         while i_pos < n_pos:
             i_end = min(i_pos + self.batch_size, n_pos)
             indices = torch.arange(i_pos, i_end).long()
