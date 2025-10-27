@@ -100,6 +100,7 @@ class ImageNetObjectDataset(ObjectDataset):
 class ProbeDataset(Dataset):
     def __init__(
         self, 
+        name_probability_map: Optional[dict[str, float]] = None,
         output_shape: Optional[tuple[int, int]] = None, 
         remove_opr_modes: bool = False,
         random_defocus_range_m: Optional[tuple[float, float]] = None,
@@ -110,6 +111,9 @@ class ProbeDataset(Dataset):
         """
         Parameters
         ----------
+        name_probability_map : Optional[dict[str, float]]
+            A map from probe name to its probability weight. If None, all probes are
+            equally weighted.
         output_shape : Optional[tuple[int, int]]
             The shape of the output probe. If the probe size is different from this value,
             it is cropped or padded.
@@ -131,11 +135,26 @@ class ProbeDataset(Dataset):
         self.random_defocus_range = random_defocus_range_m
         self.energy_for_defocusing_kev = energy_for_defocusing_kev
         self.pixel_size_for_defocusing_m = pixel_size_for_defocusing_m
+        
+        self.name_probability_map = name_probability_map
+        if self.name_probability_map is not None:
+            self.name_probability_map = self.normalize_name_probability_map(
+                self.name_probability_map
+            )
 
     def __getitem__(self, index) -> tuple[np.ndarray, str]:
         """Get the probe and its name at the given index.
         """
         raise NotImplementedError("Not implemented in base class.")
+    
+    def normalize_name_probability_map(self, m: dict[str, float]) -> dict[str, float]:
+        """Normalize the name probability weight map so that the sum of the weights is 1.
+        """
+        s = sum(m.values())
+        return {
+            name: weight / s
+            for name, weight in m.items()
+        }
     
     def add_random_defocus(self, probe: np.ndarray) -> np.ndarray:
         """Add random defocus to the probe.
@@ -184,7 +203,13 @@ class NpyProbeDataset(ProbeDataset):
     def create_index(self, recursive: bool = True) -> list[str]:
         """Create a list of all probe files in the root directory.
         """
-        return glob.glob(os.path.join(self.root_dir, "*.npy"), recursive=recursive)
+        if self.name_probability_map is not None:
+            logger.info("Using name-probability map for indexing in NpyProbeDataset.")
+            flist = list(self.name_probability_map.keys())
+        else:
+            flist = glob.glob(os.path.join(self.root_dir, "*.npy"), recursive=recursive)
+            flist = [os.path.basename(f) for f in flist]
+        return flist
     
     def __len__(self):
         return len(self.index)
@@ -202,7 +227,7 @@ class NpyProbeDataset(ProbeDataset):
         tuple[np.ndarray, str]
             A (n_opr_modes, n_modes, h, w) array of complex-valued probe.
         """
-        p = np.load(self.index[index])
+        p = np.load(os.path.join(self.root_dir, self.index[index]))
         if p.ndim == 3:
             p = p[None, ...]
         elif p.ndim == 2:

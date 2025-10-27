@@ -17,6 +17,11 @@ probe_dataset:
     random_defocus_range_m: [-1.0e-4, 1.0e-4]
     energy_for_defocusing_kev: 10
     pixel_size_for_defocusing_m: 1.0e-8
+    # The csv file containing the name-sampling probability map. The first column
+    # is the basenames of probe files (e.g., "velociprobe_fly001.npy"), and the
+    # second column is the sampling probability. The names in the map are used as the
+    # index for the dataset.
+    name_probability_map_file: "/scratch/synaps_data/probes/name_probability_map.csv"
 
 position_generator:
     class_name: "RasterGridGenerator"

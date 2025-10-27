@@ -6,6 +6,7 @@ import torch
 import numpy as np
 import tqdm
 import yaml
+import pandas as pd
 
 from parallel import MultiprocessMixin
 from simulator import PtychographySimulator
@@ -49,8 +50,14 @@ class BatchSimulationTask(MultiprocessMixin):
         
     def build_probe_dataset(self):
         probe_dataset_class = getattr(dataset, self.config["probe_dataset"]["class_name"])
+        kwargs = get_config_without_classname(self.config["probe_dataset"])
+        if "name_probability_map_file" in kwargs and kwargs["name_probability_map_file"] is not None:
+            m = pd.read_csv(kwargs["name_probability_map_file"], header=None, index_col=None)
+            m = {m[0][i]: float(m[1][i]) for i in range(len(m[0]))}
+            del kwargs["name_probability_map_file"]
+            kwargs["name_probability_map"] = m
         self.probe_dataset = probe_dataset_class(
-            **get_config_without_classname(self.config["probe_dataset"])
+            **kwargs
         )
         
     def build_parallelism(self):
@@ -67,7 +74,15 @@ class BatchSimulationTask(MultiprocessMixin):
         return position_generator
     
     def get_random_probe(self):
-        ind = np.random.randint(0, len(self.probe_dataset))
+        p = None
+        if self.probe_dataset.name_probability_map is not None:
+            p = np.array(list(self.probe_dataset.name_probability_map.values()))
+        ind = np.random.choice(
+            a=len(self.probe_dataset),
+            size=1,
+            p=p
+        )[0]
+        ind = int(ind)
         probe = self.probe_dataset[ind]
         return probe
     
