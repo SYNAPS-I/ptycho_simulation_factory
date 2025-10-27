@@ -3,8 +3,10 @@ import os
 import glob
 import logging
 
+import torch
 import numpy as np
 from PIL import Image
+from ptychi.propagate import AngularSpectrumPropagator, WavefieldPropagatorParameters
 
 from helpers.image_helpers import create_complex_object, central_crop_or_pad
 
@@ -100,13 +102,65 @@ class ProbeDataset(Dataset):
         self, 
         output_shape: Optional[tuple[int, int]] = None, 
         remove_opr_modes: bool = False,
+        random_defocus_range_m: Optional[tuple[float, float]] = None,
+        energy_for_defocusing_kev: Optional[float] = None,
+        pixel_size_for_defocusing_m: Optional[float] = None,
         *args, **kwargs
     ):
+        """
+        Parameters
+        ----------
+        output_shape : Optional[tuple[int, int]]
+            The shape of the output probe. If the probe size is different from this value,
+            it is cropped or padded.
+        remove_opr_modes : bool
+            If True, OPR modes are removed so that the size of the first dimension of the
+            returned probe is 1.
+        random_defocus_range_m : Optional[tuple[float, float]]
+            The range of defocus values to sample from. If None, no defocus is added.
+        energy_for_defocusing_kev : float
+            The energy for defocusing in keV.
+        pixel_size_for_defocusing_m : float
+            The pixel size for defocusing in meters.
+        """
         super().__init__(*args, **kwargs)
         if output_shape is not None:
             assert len(output_shape) == 2, "output_shape must be a tuple of length 2"
         self.output_shape = output_shape
         self.remove_opr_modes = remove_opr_modes
+        self.random_defocus_range = random_defocus_range_m
+        self.energy_for_defocusing_kev = energy_for_defocusing_kev
+        self.pixel_size_for_defocusing_m = pixel_size_for_defocusing_m
+
+    def __getitem__(self, index) -> tuple[np.ndarray, str]:
+        """Get the probe and its name at the given index.
+        """
+        raise NotImplementedError("Not implemented in base class.")
+    
+    def add_random_defocus(self, probe: np.ndarray) -> np.ndarray:
+        """Add random defocus to the probe.
+        """
+        if self.random_defocus_range is None:
+            return probe
+        if self.energy_for_defocusing_kev is None:
+            raise ValueError("energy_for_defocusing_kev must be set")
+        if self.pixel_size_for_defocusing_m is None:
+            raise ValueError("pixel_size_for_defocusing_m must be set")
+        
+        defocus_m = np.random.uniform(*self.random_defocus_range)
+        propagator = AngularSpectrumPropagator(
+            parameters=WavefieldPropagatorParameters.create_simple(
+                wavelength_m=1.239e-9 / self.energy_for_defocusing_kev,
+                width_px=probe.shape[2],
+                height_px=probe.shape[3],
+                pixel_width_m=self.pixel_size_for_defocusing_m,
+                pixel_height_m=self.pixel_size_for_defocusing_m,
+                propagation_distance_m=defocus_m,
+            )
+        )
+        probe_tensor = torch.tensor(probe, device=propagator._transfer_function_real.device)
+        probe_defocused = propagator.propagate_forward(probe_tensor).cpu().numpy()
+        return probe_defocused
         
 
 class NpyProbeDataset(ProbeDataset):
@@ -157,4 +211,5 @@ class NpyProbeDataset(ProbeDataset):
             p = p[0:1, ...]
         if self.output_shape is not None:
             p = central_crop_or_pad(p, self.output_shape)
+        p = self.add_random_defocus(p)
         return p

@@ -14,6 +14,9 @@ probe_dataset:
     # Output shape of the probe. Original shape is preserved if null.
     output_shape: [256, 256]
     remove_opr_modes: true
+    random_defocus_range_m: [-1.0e-4, 1.0e-4]
+    energy_for_defocusing_kev: 10
+    pixel_size_for_defocusing_m: 1.0e-8
 
 position_generator:
     class_name: "RasterGridGenerator"
