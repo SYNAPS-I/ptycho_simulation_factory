@@ -65,6 +65,7 @@ class BatchSimulationTask(MultiprocessMixin):
         if launcher is not None:
             self.init_process_group()
             torch.set_default_device(f"cuda:{self.rank % torch.cuda.device_count()}")
+            logger.info(f"Initiated rank ID {self.rank} on device {torch.get_default_device()}")
         
     def create_position_generator(self):
         position_generator_class = getattr(grid_generator, self.config["position_generator"]["class_name"])
