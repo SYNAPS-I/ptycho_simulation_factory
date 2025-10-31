@@ -7,6 +7,7 @@ import torch
 import numpy as np
 from PIL import Image
 from ptychi.propagate import AngularSpectrumPropagator, WavefieldPropagatorParameters
+import scipy.ndimage as ndi
 
 from helpers.image_helpers import create_complex_object, central_crop_or_pad
 
@@ -54,6 +55,7 @@ class ImageNetObjectDataset(ObjectDataset):
         root_dir: str, 
         random_min_mag_range: tuple[float, float] = (0.5, 1.0),
         random_phase_range: tuple[float, float] = (0.0, 2.0),
+        object_size: Optional[tuple[int, int]] = None,
         *args, **kwargs
     ):
         super().__init__(
@@ -63,6 +65,7 @@ class ImageNetObjectDataset(ObjectDataset):
         )
         self.root_dir = root_dir
         self.index = self.create_index()
+        self.object_size = object_size
         
     def create_index(self, recursive: bool = True) -> list[str]:
         """Create a list of all object files in the root directory.
@@ -76,6 +79,7 @@ class ImageNetObjectDataset(ObjectDataset):
             index = glob.glob(os.path.join(self.root_dir, "**", "*.JPEG"), recursive=recursive)
             with open(os.path.join(self.root_dir, "index.txt"), "w") as f:
                 for item in index:
+                    item = os.path.relpath(item, self.root_dir)
                     f.write(item + "\n")
             return index
     
@@ -85,11 +89,14 @@ class ImageNetObjectDataset(ObjectDataset):
     def __getitem__(self, index) -> tuple[np.ndarray, str]:
         """Get the object and its name at the given index.
         """
-        obj = Image.open(self.index[index])
+        obj = Image.open(os.path.join(self.root_dir, self.index[index]))
         obj = np.array(obj)
         if obj.ndim == 3:
             obj = obj.mean(axis=-1)
         obj = obj[None, ...]
+        
+        if self.object_size is not None:
+            obj = ndi.zoom(obj, [1] + [self.object_size[i] / obj.shape[1 + i] for i in range(2)], order=1)
         
         min_mag = np.random.uniform(*self.random_min_mag_range)
         phase_range = np.random.uniform(*self.random_phase_range)

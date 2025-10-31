@@ -3,6 +3,7 @@ from typing import Optional
 
 import numpy as np
 import h5py
+import hdf5plugin  # Blosc compression support (EPICS area detector style)
 import tqdm
 import tifffile
 import torch
@@ -36,6 +37,7 @@ class PtychographySimulator:
         add_poisson_noise: bool = False,
         total_photon_count: Optional[int] = None,
         verbose: bool = True,
+        compression: Optional[str | dict] = None,
     ):
         self.object_ = object_
         self.probe = probe
@@ -51,6 +53,7 @@ class PtychographySimulator:
         self.add_poisson_noise = add_poisson_noise
         self.total_photon_count = total_photon_count
         self.verbose = verbose
+        self.compression = compression
         
     def build_forward_model(self):
         options = api.base.ObjectOptions(
@@ -86,7 +89,80 @@ class PtychographySimulator:
         self.f_dp = h5py.File(os.path.join(self.output_dir, f"{self.output_file_prefix}dp.hdf5"), "w")
         self.f_para = h5py.File(os.path.join(self.output_dir, f"{self.output_file_prefix}para.hdf5"), "w")
         
-        self.f_dp.create_dataset("dp", shape=(self.positions.shape[0], *self.probe.shape[-2:]), dtype="float32")
+        # Determine compression settings from config
+        # Optimal chunking for diffraction patterns: chunk by position (one pattern per chunk)
+        # This allows better compression as each pattern is compressed independently
+        n_positions = self.positions.shape[0]
+        probe_shape = self.probe.shape[-2:]
+        optimal_chunks = (1, *probe_shape)  # One diffraction pattern per chunk
+        
+        dp_dataset_kwargs = {
+            "shape": (n_positions, *probe_shape),
+            "dtype": "float32",
+            "chunks": optimal_chunks,  # Optimal chunking for diffraction patterns
+        }
+        
+        # Apply compression if specified in config
+        if self.compression is not None:
+            if isinstance(self.compression, str):
+                comp_name = self.compression.lower()
+                if comp_name == "blosc":
+                    # Default Blosc settings (EPICS area detector style)
+                    blosc_kwargs = hdf5plugin.Blosc(
+                        cname='zstd',
+                        clevel=9,
+                        shuffle=hdf5plugin.Blosc.SHUFFLE,
+                    )
+                    dp_dataset_kwargs.update(**blosc_kwargs)
+                elif comp_name == "bitshuffle":
+                    # Bitshuffle is optimal for scientific float data
+                    bitshuffle_kwargs = hdf5plugin.Bitshuffle(nelems=0, cname='lz4')
+                    dp_dataset_kwargs.update(**bitshuffle_kwargs)
+                elif comp_name == "gzip":
+                    # GZIP with shuffle for maximum compression
+                    dp_dataset_kwargs.update({
+                        "compression": "gzip",
+                        "compression_opts": 9,
+                        "shuffle": True,
+                    })
+            elif isinstance(self.compression, dict):
+                # Custom compression settings
+                comp_name = self.compression.get("name", "blosc").lower()
+                
+                if comp_name == "bitshuffle":
+                    # Bitshuffle (optimal for float32 scientific data)
+                    nelems = self.compression.get("nelems", 0)  # 0 = auto
+                    cname = self.compression.get("cname", "lz4")  # lz4, none, or other
+                    bitshuffle_kwargs = hdf5plugin.Bitshuffle(nelems=nelems, cname=cname)
+                    dp_dataset_kwargs.update(**bitshuffle_kwargs)
+                elif comp_name == "blosc":
+                    # Handle shuffle: convert bool to Blosc constant if needed
+                    shuffle_setting = self.compression.get("shuffle", True)
+                    if isinstance(shuffle_setting, bool):
+                        shuffle = hdf5plugin.Blosc.SHUFFLE if shuffle_setting else hdf5plugin.Blosc.NOSHUFFLE
+                    else:
+                        shuffle = shuffle_setting
+                    
+                    blosc_kwargs = hdf5plugin.Blosc(
+                        cname=self.compression.get("cname", "zstd"),
+                        clevel=self.compression.get("clevel", 9),
+                        shuffle=shuffle,
+                    )
+                    dp_dataset_kwargs.update(**blosc_kwargs)
+                elif comp_name == "gzip":
+                    # GZIP compression
+                    dp_dataset_kwargs.update({
+                        "compression": "gzip",
+                        "compression_opts": self.compression.get("clevel", 9),
+                        "shuffle": self.compression.get("shuffle", True),
+                    })
+                
+                # Override chunks if specified
+                if "chunks" in self.compression:
+                    dp_dataset_kwargs["chunks"] = self.compression["chunks"]
+        
+        # Create diffraction pattern dataset (with or without compression)
+        self.f_dp.create_dataset("dp", **dp_dataset_kwargs)
         
         if self.probe_to_be_in_data_file is None:
             self.f_para.create_dataset("probe", data=self.probe.data.detach().cpu().numpy())
