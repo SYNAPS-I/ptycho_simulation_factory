@@ -7,6 +7,7 @@ object_dataset:
     # Range from which the phase of the object is drawn. The phase of a generated
     # object is in the range of [-phase_range / 2, phase_range / 2].
     random_phase_range: [0.8, 1.8]
+    object_size: [550, 550] # null means original size
 
 probe_dataset:
     class_name: "NpyProbeDataset"
@@ -34,6 +35,24 @@ simulator:
     add_poisson_noise: false
     # Total photon count of diffraction patterns for adding Poisson noise.
     total_photon_count: 100000
+    # Compression for diffraction patterns (optional)
+    # Options for best compression (EPICS area detector style):
+    #   - null or omit: no compression (original)
+    #   - "bitshuffle": Bitshuffle filter (best for float32 scientific data, often 8-20x compression)
+    #   - "blosc": Blosc compression (zstd compressor)
+    #   - "gzip": GZIP with shuffle (good compression, widely compatible)
+    #   - dict with custom settings:
+    #       compression:
+    #         name: "bitshuffle"  # Best for diffraction patterns
+    #         cname: "lz4"         # Compressor: lz4, none (none = bitshuffle only)
+    #         nelems: 0            # 0 = auto, or specify elements per block
+    #       OR
+    #       compression:
+    #         name: "blosc"
+    #         cname: "zstd"        # zstd, lz4, blosclz, zlib
+    #         clevel: 9            # Compression level 0-9
+    #         shuffle: true        # Byte shuffle
+    compression: null  # Best for diffraction patterns (can achieve 8-20x compression)
 
 task:
-    output_root: "../synaps_data/simulated_data"
+    output_root: "../synaps_data/simulated_data_blosc"

@@ -129,6 +129,9 @@ class BatchSimulationTask(MultiprocessMixin):
                     axis=1
                 )
             
+            # Get compression config if specified
+            compression = self.config["simulator"].get("compression")
+            
             sim = PtychographySimulator(
                 object_=object,
                 probe=probe,
@@ -140,7 +143,8 @@ class BatchSimulationTask(MultiprocessMixin):
                 output_file_prefix=name + "_",
                 add_poisson_noise=self.config["simulator"]["add_poisson_noise"],
                 total_photon_count=self.config["simulator"]["total_photon_count"],
-                verbose=False
+                verbose=False,
+                compression=compression,
             )
             sim.run()
 
