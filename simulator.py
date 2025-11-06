@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+import json
 
 import numpy as np
 import h5py
@@ -35,6 +36,8 @@ class PtychographySimulator:
         probe_to_be_in_data_file: Optional[np.ndarray | torch.Tensor] = None,
         add_poisson_noise: bool = False,
         total_photon_count: Optional[int] = None,
+        save_object_tiffs: bool = True,
+        save_parameters: bool = False,
         verbose: bool = True,
     ):
         self.object_ = object_
@@ -51,6 +54,8 @@ class PtychographySimulator:
         self.add_poisson_noise = add_poisson_noise
         self.total_photon_count = total_photon_count
         self.verbose = verbose
+        self.save_object_tiffs = save_object_tiffs
+        self.save_parameters = save_parameters
         
     def build_forward_model(self):
         options = api.base.ObjectOptions(
@@ -81,7 +86,7 @@ class PtychographySimulator:
             wavelength_m=self.wavelength_m,
         )
         
-    def build_output_files(self, save_object_tiffs: bool = True):
+    def build_output_files(self, save_object_tiffs: bool = True, save_parameters: bool = False):
         os.makedirs(self.output_dir, exist_ok=True)
         self.f_dp = h5py.File(os.path.join(self.output_dir, f"{self.output_file_prefix}dp.hdf5"), "w")
         self.f_para = h5py.File(os.path.join(self.output_dir, f"{self.output_file_prefix}para.hdf5"), "w")
@@ -105,13 +110,23 @@ class PtychographySimulator:
             tifffile.imwrite(os.path.join(self.output_dir, "true_object_phase.tiff"), np.angle(self.object_.data.detach().cpu().numpy()))
             tifffile.imwrite(os.path.join(self.output_dir, "true_object_mag.tiff"), np.abs(self.object_.data.detach().cpu().numpy()))
         
+        if save_parameters:
+            d = {
+                "pixel_size_m": self.pixel_size,
+                "wavelength_m": self.wavelength_m,
+                "depth_of_field_m": 5.4 * self.wavelength_m ** 2 / self.pixel_size,
+                "slice_spacings_m": self.slice_spacings_m,
+            }
+            with open(os.path.join(self.output_dir, "simulator_params.json"), "w") as f:
+                json.dump(d, f)
+        
     def wrap_up(self):
         self.f_dp.close()
         self.f_para.close()
         
-    def run(self, save_object_tiffs: bool = True):
+    def run(self):
         self.build_forward_model()
-        self.build_output_files(save_object_tiffs=save_object_tiffs)
+        self.build_output_files(save_object_tiffs=self.save_object_tiffs, save_parameters=self.save_parameters)
 
         i_pos = 0
         n_pos = self.positions.shape[0]
