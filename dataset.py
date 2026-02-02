@@ -56,6 +56,7 @@ class ImageNetObjectDataset(ObjectDataset):
         random_min_mag_range: tuple[float, float] = (0.5, 1.0),
         random_phase_range: tuple[float, float] = (0.0, 2.0),
         object_size: Optional[tuple[int, int]] = None,
+        n_max_object: Optional[int] = None,
         *args, **kwargs
     ):
         super().__init__(
@@ -66,6 +67,9 @@ class ImageNetObjectDataset(ObjectDataset):
         self.root_dir = root_dir
         self.index = self.create_index()
         self.object_size = object_size
+        self.n_max_object = n_max_object
+        if self.n_max_object is not None:
+            self.index = self.index[: int(self.n_max_object)]
         
     def create_index(self, recursive: bool = True) -> list[str]:
         """Create a list of all object files in the root directory.
