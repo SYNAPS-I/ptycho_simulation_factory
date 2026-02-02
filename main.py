@@ -30,6 +30,7 @@ class BatchSimulationTask(MultiprocessMixin):
         
         self.object_dataset = None
         self.probe_dataset = None
+        self._probe_sampler_state = None
         
         self.build()
         
@@ -38,6 +39,10 @@ class BatchSimulationTask(MultiprocessMixin):
         self.build_parallelism()
         self.build_object_dataset()
         self.build_probe_dataset()
+
+    @property
+    def sample_probe_randomly(self) -> bool:
+        return self.config.get("simulator", {}).get("sample_probe_randomly", True)
         
     def build_output_dir(self):
         os.makedirs(self.config["task"]["output_root"], exist_ok=True)
@@ -59,6 +64,48 @@ class BatchSimulationTask(MultiprocessMixin):
         self.probe_dataset = probe_dataset_class(
             **kwargs
         )
+        self.build_probe_sampler()
+
+    def build_probe_sampler(self):
+        if self.sample_probe_randomly:
+            self._probe_sampler_state = None
+            return
+        n_probes = len(self.probe_dataset)
+        if n_probes == 0:
+            raise ValueError("probe_dataset is empty")
+        if self.probe_dataset.name_probability_map is not None:
+            weights = []
+            for item in self.probe_dataset.index:
+                name = os.path.basename(item)
+                weights.append(float(self.probe_dataset.name_probability_map.get(name, 0.0)))
+            weights = np.array(weights, dtype=float)
+            if weights.sum() <= 0:
+                weights = np.ones(n_probes, dtype=float)
+            repeats = n_probes * weights
+            clipped = (repeats > 0) & (repeats < 1)
+            repeats[clipped] = 1.0
+            repeats = np.rint(repeats).astype(int)
+            sequence = []
+            for ind, count in enumerate(repeats):
+                if count > 0:
+                    sequence.extend([ind] * int(count))
+        else:
+            sequence = list(range(n_probes))
+        if len(sequence) == 0:
+            sequence = list(range(n_probes))
+        self._probe_sampler_state = {
+            "sequence": sequence,
+            "next_index": 0,
+        }
+
+    def get_deterministic_probe_index(self) -> int:
+        state = self._probe_sampler_state
+        if state is None:
+            return 0
+        sequence = state["sequence"]
+        ind = sequence[state["next_index"]]
+        state["next_index"] = (state["next_index"] + 1) % len(sequence)
+        return int(ind)
         
     def build_parallelism(self):
         launcher = self.detect_launcher()
@@ -74,16 +121,27 @@ class BatchSimulationTask(MultiprocessMixin):
         )
         return position_generator
     
-    def get_random_probe(self):
-        p = None
-        if self.probe_dataset.name_probability_map is not None:
-            p = np.array(list(self.probe_dataset.name_probability_map.values()))
-        ind = np.random.choice(
-            a=len(self.probe_dataset),
-            size=1,
-            p=p
-        )[0]
-        ind = int(ind)
+    def get_probe(self):
+        if self.sample_probe_randomly:
+            p = None
+            if self.probe_dataset.name_probability_map is not None:
+                p = np.array(
+                    [
+                        float(self.probe_dataset.name_probability_map.get(os.path.basename(item), 0.0))
+                        for item in self.probe_dataset.index
+                    ],
+                    dtype=float,
+                )
+                if p.sum() <= 0:
+                    p = None
+            ind = np.random.choice(
+                a=len(self.probe_dataset),
+                size=1,
+                p=p
+            )[0]
+            ind = int(ind)
+        else:
+            ind = self.get_deterministic_probe_index()
         probe_item = self.probe_dataset[ind]
         if isinstance(probe_item, tuple):
             probe, probe_file = probe_item
@@ -113,7 +171,7 @@ class BatchSimulationTask(MultiprocessMixin):
             if self.skip_existing and self.output_exists(name):
                 continue
             
-            probe, probe_file = self.get_random_probe()
+            probe, probe_file = self.get_probe()
             
             position_generator = self.create_position_generator()
             positions = position_generator.generate_positions(
