@@ -149,8 +149,8 @@ class ProbeDataset(Dataset):
                 self.name_probability_map
             )
 
-    def __getitem__(self, index) -> tuple[np.ndarray, str]:
-        """Get the probe and its name at the given index.
+    def __getitem__(self, index) -> tuple[np.ndarray, Optional[str]]:
+        """Get the probe and its source file path at the given index.
         """
         raise NotImplementedError("Not implemented in base class.")
     
@@ -222,7 +222,7 @@ class NpyProbeDataset(ProbeDataset):
         return len(self.index)
         
     def __getitem__(self, index) -> tuple[np.ndarray, str]:
-        """Get the probe and its name at the given index.
+        """Get the probe and its source file path at the given index.
         
         Parameters
         ----------
@@ -232,9 +232,13 @@ class NpyProbeDataset(ProbeDataset):
         Returns
         -------
         tuple[np.ndarray, str]
-            A (n_opr_modes, n_modes, h, w) array of complex-valued probe.
+            A (n_opr_modes, n_modes, h, w) array of complex-valued probe and
+            the file path it was loaded from.
         """
-        p = np.load(os.path.join(self.root_dir, self.index[index]))
+        probe_path = self.index[index]
+        if not os.path.isabs(probe_path):
+            probe_path = os.path.join(self.root_dir, probe_path)
+        p = np.load(probe_path)
         if p.ndim == 3:
             p = p[None, ...]
         elif p.ndim == 2:
@@ -244,4 +248,4 @@ class NpyProbeDataset(ProbeDataset):
         if self.output_shape is not None:
             p = central_crop_or_pad(p, self.output_shape)
         p = self.add_random_defocus(p)
-        return p
+        return p, probe_path

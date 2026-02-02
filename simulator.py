@@ -34,6 +34,7 @@ class PtychographySimulator:
         output_dir: str = "data",
         output_file_prefix: str = "ptychodus_",
         probe_to_be_in_data_file: Optional[np.ndarray | torch.Tensor] = None,
+        probe_file: Optional[str] = None,
         add_poisson_noise: bool = False,
         total_photon_count: Optional[int] = None,
         verbose: bool = True,
@@ -50,6 +51,7 @@ class PtychographySimulator:
         self.output_dir = output_dir
         self.output_file_prefix = output_file_prefix
         self.probe_to_be_in_data_file = probe_to_be_in_data_file
+        self.probe_file = probe_file
         self.add_poisson_noise = add_poisson_noise
         self.total_photon_count = total_photon_count
         self.verbose = verbose
@@ -168,6 +170,11 @@ class PtychographySimulator:
             self.f_para.create_dataset("probe", data=self.probe.data.detach().cpu().numpy())
         else:
             self.f_para.create_dataset("probe", data=self.probe_to_be_in_data_file)
+        probe_file_value = "" if self.probe_file is None else self.probe_file
+        self.f_para.create_dataset(
+            "probe_file",
+            data=np.array(probe_file_value, dtype=h5py.string_dtype(encoding="utf-8")),
+        )
         self.f_para.create_dataset("probe_position_indexes", data=np.arange(self.positions.shape[0]).astype(int))
         self.f_para.create_dataset("probe_position_x_m", data=self.positions.data[:, 1].detach().cpu().numpy() * self.pixel_size)
         self.f_para.create_dataset("probe_position_y_m", data=self.positions.data[:, 0].detach().cpu().numpy() * self.pixel_size)

@@ -84,8 +84,13 @@ class BatchSimulationTask(MultiprocessMixin):
             p=p
         )[0]
         ind = int(ind)
-        probe = self.probe_dataset[ind]
-        return probe
+        probe_item = self.probe_dataset[ind]
+        if isinstance(probe_item, tuple):
+            probe, probe_file = probe_item
+        else:
+            probe = probe_item
+            probe_file = None
+        return probe, probe_file
     
     def output_exists(self, name: str) -> bool:
         return (
@@ -108,7 +113,7 @@ class BatchSimulationTask(MultiprocessMixin):
             if self.skip_existing and self.output_exists(name):
                 continue
             
-            probe = self.get_random_probe()
+            probe, probe_file = self.get_random_probe()
             
             position_generator = self.create_position_generator()
             positions = position_generator.generate_positions(
@@ -141,6 +146,7 @@ class BatchSimulationTask(MultiprocessMixin):
                 wavelength_m=1.24e-9 / self.config["simulator"]["energy_kev"],
                 output_dir=os.path.join(self.config["task"]["output_root"]),
                 output_file_prefix=name + "_",
+                probe_file=probe_file,
                 add_poisson_noise=self.config["simulator"]["add_poisson_noise"],
                 total_photon_count=self.config["simulator"]["total_photon_count"],
                 verbose=False,
