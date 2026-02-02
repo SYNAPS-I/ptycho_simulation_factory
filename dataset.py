@@ -108,6 +108,7 @@ class ProbeDataset(Dataset):
     def __init__(
         self, 
         name_probability_map: Optional[dict[str, float]] = None,
+        probe_file_list: Optional[str] = None,
         output_shape: Optional[tuple[int, int]] = None, 
         remove_opr_modes: bool = False,
         random_defocus_range_m: Optional[tuple[float, float]] = None,
@@ -144,6 +145,7 @@ class ProbeDataset(Dataset):
         self.pixel_size_for_defocusing_m = pixel_size_for_defocusing_m
         
         self.name_probability_map = name_probability_map
+        self.probe_file_list = probe_file_list
         if self.name_probability_map is not None:
             self.name_probability_map = self.normalize_name_probability_map(
                 self.name_probability_map
@@ -195,6 +197,7 @@ class NpyProbeDataset(ProbeDataset):
         root_dir: str, 
         output_shape: Optional[tuple[int, int]] = None, 
         remove_opr_modes: bool = False,
+        probe_file_list: Optional[str] = None,
         recursive: bool = True, 
         *args, 
         **kwargs
@@ -202,14 +205,36 @@ class NpyProbeDataset(ProbeDataset):
         super().__init__(
             output_shape=output_shape,
             remove_opr_modes=remove_opr_modes,
+            probe_file_list=probe_file_list,
             *args, **kwargs
         )
         self.root_dir = root_dir
+        self._probe_file_list_dir = None
+        if self.probe_file_list is not None:
+            self._probe_file_list_dir = os.path.dirname(self.probe_file_list)
+            logger.warning(
+                "probe_file_list provided; using listed probe files in order and ignoring "
+                "name_probability_map."
+            )
+            self.name_probability_map = None
         self.index = self.create_index(recursive)
         
     def create_index(self, recursive: bool = True) -> list[str]:
         """Create a list of all probe files in the root directory.
         """
+        if self.probe_file_list is not None:
+            with open(self.probe_file_list, "r") as f:
+                lines = [line.strip() for line in f.readlines()]
+            lines = [line for line in lines if line]
+            if self._probe_file_list_dir:
+                resolved = []
+                for line in lines:
+                    if os.path.isabs(line):
+                        resolved.append(line)
+                    else:
+                        resolved.append(os.path.join(self._probe_file_list_dir, line))
+                lines = resolved
+            return lines
         if self.name_probability_map is not None:
             logger.info("Using name-probability map for indexing in NpyProbeDataset.")
             flist = list(self.name_probability_map.keys())
@@ -236,7 +261,7 @@ class NpyProbeDataset(ProbeDataset):
             the file path it was loaded from.
         """
         probe_path = self.index[index]
-        if not os.path.isabs(probe_path):
+        if self.probe_file_list is None and not os.path.isabs(probe_path):
             probe_path = os.path.join(self.root_dir, probe_path)
         p = np.load(probe_path)
         if p.ndim == 3:

@@ -56,6 +56,13 @@ class BatchSimulationTask(MultiprocessMixin):
     def build_probe_dataset(self):
         probe_dataset_class = getattr(dataset, self.config["probe_dataset"]["class_name"])
         kwargs = get_config_without_classname(self.config["probe_dataset"])
+        if (
+            "probe_file_list" in kwargs
+            and kwargs["probe_file_list"] is not None
+            and "name_probability_map_file" in kwargs
+            and kwargs["name_probability_map_file"] is not None
+        ):
+            raise ValueError("probe_file_list and name_probability_map_file cannot both be set")
         if "name_probability_map_file" in kwargs and kwargs["name_probability_map_file"] is not None:
             m = pd.read_csv(kwargs["name_probability_map_file"], header=None, index_col=None)
             m = {m[0][i]: float(m[1][i]) for i in range(len(m[0]))}
@@ -73,6 +80,13 @@ class BatchSimulationTask(MultiprocessMixin):
         n_probes = len(self.probe_dataset)
         if n_probes == 0:
             raise ValueError("probe_dataset is empty")
+        if self.probe_dataset.probe_file_list is not None:
+            sequence = list(range(n_probes))
+            self._probe_sampler_state = {
+                "sequence": sequence,
+                "next_index": 0,
+            }
+            return
         if self.probe_dataset.name_probability_map is not None:
             weights = []
             for item in self.probe_dataset.index:
@@ -122,6 +136,17 @@ class BatchSimulationTask(MultiprocessMixin):
         return position_generator
     
     def get_probe(self):
+        if self.probe_dataset.probe_file_list is not None:
+            if self._probe_sampler_state is None:
+                self.build_probe_sampler()
+            ind = self.get_deterministic_probe_index()
+            probe_item = self.probe_dataset[ind]
+            if isinstance(probe_item, tuple):
+                probe, probe_file = probe_item
+            else:
+                probe = probe_item
+                probe_file = None
+            return probe, probe_file
         if self.sample_probe_randomly:
             p = None
             if self.probe_dataset.name_probability_map is not None:
