@@ -57,6 +57,7 @@ class ImageNetObjectDataset(ObjectDataset):
         random_phase_range: tuple[float, float] = (0.0, 2.0),
         object_size: Optional[tuple[int, int]] = None,
         n_max_object: Optional[int] = None,
+        object_file_list: Optional[str] = None,
         *args, **kwargs
     ):
         super().__init__(
@@ -65,7 +66,15 @@ class ImageNetObjectDataset(ObjectDataset):
             *args, **kwargs
         )
         self.root_dir = root_dir
-        self.index = self.create_index()
+        self.object_file_list = object_file_list
+        if self.object_file_list is not None:
+            logger.warning(
+                "object_file_list provided; using listed object files in order "
+                "and ignoring index creation."
+            )
+            self.index = self.create_index()
+        else:
+            self.index = self.create_index()
         self.object_size = object_size
         self.n_max_object = n_max_object
         if self.n_max_object is not None:
@@ -74,6 +83,18 @@ class ImageNetObjectDataset(ObjectDataset):
     def create_index(self, recursive: bool = True) -> list[str]:
         """Create a list of all object files in the root directory.
         """
+        if self.object_file_list is not None:
+            with open(self.object_file_list, "r") as f:
+                lines = [line.strip() for line in f.readlines()]
+            lines = [line for line in lines if line]
+            resolved = []
+            for line in lines:
+                if os.path.isabs(line):
+                    resolved.append(line)
+                else:
+                    resolved.append(os.path.join(self.root_dir, line))
+            lines = resolved
+            return lines
         if os.path.exists(os.path.join(self.root_dir, "index.txt")):
             logger.info(f"Loading index for ImageNetObjectDataset from {os.path.join(self.root_dir, 'index.txt')}")
             with open(os.path.join(self.root_dir, "index.txt"), "r") as f:
@@ -93,7 +114,10 @@ class ImageNetObjectDataset(ObjectDataset):
     def __getitem__(self, index) -> tuple[np.ndarray, str]:
         """Get the object and its name at the given index.
         """
-        obj = Image.open(os.path.join(self.root_dir, self.index[index]))
+        obj_path = self.index[index]
+        if self.object_file_list is None and not os.path.isabs(obj_path):
+            obj_path = os.path.join(self.root_dir, obj_path)
+        obj = Image.open(obj_path)
         obj = np.array(obj)
         if obj.ndim == 3:
             obj = obj.mean(axis=-1)
@@ -105,7 +129,7 @@ class ImageNetObjectDataset(ObjectDataset):
         min_mag = np.random.uniform(*self.random_min_mag_range)
         phase_range = np.random.uniform(*self.random_phase_range)
         obj = create_complex_object(obj, min_mag, phase_range)
-        return obj, os.path.splitext(os.path.basename(self.index[index]))[0]
+        return obj, os.path.splitext(os.path.basename(obj_path))[0]
 
 
 class ProbeDataset(Dataset):
@@ -213,9 +237,7 @@ class NpyProbeDataset(ProbeDataset):
             *args, **kwargs
         )
         self.root_dir = root_dir
-        self._probe_file_list_dir = None
         if self.probe_file_list is not None:
-            self._probe_file_list_dir = os.path.dirname(self.probe_file_list)
             logger.warning(
                 "probe_file_list provided; using listed probe files in order and ignoring "
                 "name_probability_map."
@@ -230,14 +252,13 @@ class NpyProbeDataset(ProbeDataset):
             with open(self.probe_file_list, "r") as f:
                 lines = [line.strip() for line in f.readlines()]
             lines = [line for line in lines if line]
-            if self._probe_file_list_dir:
-                resolved = []
-                for line in lines:
-                    if os.path.isabs(line):
-                        resolved.append(line)
-                    else:
-                        resolved.append(os.path.join(self._probe_file_list_dir, line))
-                lines = resolved
+            resolved = []
+            for line in lines:
+                if os.path.isabs(line):
+                    resolved.append(line)
+                else:
+                    resolved.append(os.path.join(self.root_dir, line))
+            lines = resolved
             return lines
         if self.name_probability_map is not None:
             logger.info("Using name-probability map for indexing in NpyProbeDataset.")
