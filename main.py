@@ -133,6 +133,12 @@ class BatchSimulationTask(MultiprocessMixin):
             self.init_process_group()
             torch.set_default_device(f"cuda:{self.rank % torch.cuda.device_count()}")
             logger.info(f"Initiated rank ID {self.rank} on device {torch.get_default_device()}")
+            return
+        if torch.cuda.is_available():
+            torch.set_default_device("cuda")
+            logger.info(f"Single-process run using device {torch.get_default_device()}")
+        else:
+            logger.info("Single-process run using CPU (CUDA not available)")
         
     def create_position_generator(self):
         position_generator_class = getattr(grid_generator, self.config["position_generator"]["class_name"])
