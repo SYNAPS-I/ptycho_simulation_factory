@@ -1,6 +1,7 @@
 import os
 import argparse
 import logging
+from typing import Optional
 
 import torch
 import numpy as np
@@ -140,7 +141,23 @@ class BatchSimulationTask(MultiprocessMixin):
         )
         return position_generator
     
-    def get_probe(self):
+    def get_probe(self, master_index: Optional[int] = None):
+        if master_index is not None and self.probe_dataset.probe_file_list is not None:
+            if len(self.probe_dataset) == 0:
+                raise ValueError("probe_dataset is empty")
+            ind = int(master_index) % len(self.probe_dataset)
+            probe_item = self.probe_dataset[ind]
+            if isinstance(probe_item, tuple):
+                if len(probe_item) == 3:
+                    probe, probe_file, probe_defocus_m = probe_item
+                else:
+                    probe, probe_file = probe_item
+                    probe_defocus_m = None
+            else:
+                probe = probe_item
+                probe_file = None
+                probe_defocus_m = None
+            return probe, probe_file, probe_defocus_m
         if self.probe_dataset.probe_file_list is not None:
             if self._probe_sampler_state is None:
                 self.build_probe_sampler()
@@ -216,7 +233,7 @@ class BatchSimulationTask(MultiprocessMixin):
             if self.skip_existing and self.output_exists(name):
                 continue
             
-            probe, probe_file, probe_defocus_m = self.get_probe()
+            probe, probe_file, probe_defocus_m = self.get_probe(master_index=object_ind)
             
             position_generator = self.create_position_generator()
             positions = position_generator.generate_positions(
