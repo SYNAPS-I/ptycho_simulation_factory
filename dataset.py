@@ -59,7 +59,7 @@ class ImageNetObjectDataset(ObjectDataset):
         n_max_object: Optional[int] = None,
         object_file_list: Optional[str] = None,
         object_min_mag_list: Optional[list[float]] = None,
-        object_max_phase_list: Optional[list[float]] = None,
+        object_phase_range_list: Optional[list[float]] = None,
         *args, **kwargs
     ):
         super().__init__(
@@ -70,7 +70,7 @@ class ImageNetObjectDataset(ObjectDataset):
         self.root_dir = root_dir
         self.object_file_list = object_file_list
         self.object_min_mag_list = object_min_mag_list
-        self.object_max_phase_list = object_max_phase_list
+        self.object_phase_range_list = object_phase_range_list
         if self.object_file_list is not None:
             logger.warning(
                 "object_file_list provided; using listed object files in order "
@@ -136,10 +136,10 @@ class ImageNetObjectDataset(ObjectDataset):
             min_mag = float(self.object_min_mag_list[index % len(self.object_min_mag_list)])
         else:
             min_mag = np.random.uniform(*self.random_min_mag_range)
-        if self.object_max_phase_list is not None:
-            if len(self.object_max_phase_list) == 0:
-                raise ValueError("object_max_phase_list is empty")
-            phase_range = float(self.object_max_phase_list[index % len(self.object_max_phase_list)])
+        if self.object_phase_range_list is not None:
+            if len(self.object_phase_range_list) == 0:
+                raise ValueError("object_phase_range_list is empty")
+            phase_range = float(self.object_phase_range_list[index % len(self.object_phase_range_list)])
         else:
             phase_range = np.random.uniform(*self.random_phase_range)
         obj = create_complex_object(obj, min_mag, phase_range)
