@@ -56,6 +56,11 @@ class BatchSimulationTask(MultiprocessMixin):
     def build_probe_dataset(self):
         probe_dataset_class = getattr(dataset, self.config["probe_dataset"]["class_name"])
         kwargs = get_config_without_classname(self.config["probe_dataset"])
+        if "probe_defocus_list" in kwargs and kwargs["probe_defocus_list"] is not None:
+            with open(kwargs["probe_defocus_list"], "r") as f:
+                values = [line.strip() for line in f.readlines()]
+            values = [line for line in values if line]
+            kwargs["probe_defocus_list"] = [float(v) for v in values]
         if (
             "probe_file_list" in kwargs
             and kwargs["probe_file_list"] is not None

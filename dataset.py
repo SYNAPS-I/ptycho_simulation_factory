@@ -137,6 +137,7 @@ class ProbeDataset(Dataset):
         self, 
         name_probability_map: Optional[dict[str, float]] = None,
         probe_file_list: Optional[str] = None,
+        probe_defocus_list: Optional[list[float]] = None,
         output_shape: Optional[tuple[int, int]] = None, 
         remove_opr_modes: bool = False,
         random_defocus_range_m: Optional[tuple[float, float]] = None,
@@ -168,9 +169,12 @@ class ProbeDataset(Dataset):
             assert len(output_shape) == 2, "output_shape must be a tuple of length 2"
         self.output_shape = output_shape
         self.remove_opr_modes = remove_opr_modes
+        self.probe_defocus_list = probe_defocus_list
         self.random_defocus_range = random_defocus_range_m
         self.energy_for_defocusing_kev = energy_for_defocusing_kev
         self.pixel_size_for_defocusing_m = pixel_size_for_defocusing_m
+        if self.probe_defocus_list is not None:
+            self.random_defocus_range = None
         
         self.name_probability_map = name_probability_map
         self.probe_file_list = probe_file_list
@@ -204,6 +208,14 @@ class ProbeDataset(Dataset):
             raise ValueError("pixel_size_for_defocusing_m must be set")
         
         defocus_m = np.random.uniform(*self.random_defocus_range)
+        return self.defocus_probe(probe, float(defocus_m))
+
+    def defocus_probe(self, probe: np.ndarray, defocus_m: float) -> np.ndarray:
+        """Apply defocus to the probe using a specified defocus distance."""
+        if self.energy_for_defocusing_kev is None:
+            raise ValueError("energy_for_defocusing_kev must be set")
+        if self.pixel_size_for_defocusing_m is None:
+            raise ValueError("pixel_size_for_defocusing_m must be set")
         propagator = AngularSpectrumPropagator(
             parameters=WavefieldPropagatorParameters.create_simple(
                 wavelength_m=1.239e-9 / self.energy_for_defocusing_kev,
@@ -297,5 +309,11 @@ class NpyProbeDataset(ProbeDataset):
             p = p[0:1, ...]
         if self.output_shape is not None:
             p = central_crop_or_pad(p, self.output_shape)
-        p = self.add_random_defocus(p)
+        if self.probe_defocus_list is not None:
+            if len(self.probe_defocus_list) == 0:
+                raise ValueError("probe_defocus_list is empty")
+            defocus_m = float(self.probe_defocus_list[index % len(self.probe_defocus_list)])
+            p = self.defocus_probe(p, defocus_m)
+        else:
+            p = self.add_random_defocus(p)
         return p, probe_path
