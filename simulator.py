@@ -37,6 +37,8 @@ class PtychographySimulator:
         probe_file: Optional[str] = None,
         object_file: Optional[str] = None,
         probe_defocus_m: Optional[float] = None,
+        object_min_mag: Optional[float] = None,
+        object_max_phase: Optional[float] = None,
         add_poisson_noise: bool = False,
         total_photon_count: Optional[int] = None,
         verbose: bool = True,
@@ -56,6 +58,8 @@ class PtychographySimulator:
         self.probe_file = probe_file
         self.object_file = object_file
         self.probe_defocus_m = probe_defocus_m
+        self.object_min_mag = object_min_mag
+        self.object_max_phase = object_max_phase
         self.add_poisson_noise = add_poisson_noise
         self.total_photon_count = total_photon_count
         self.verbose = verbose
@@ -186,6 +190,10 @@ class PtychographySimulator:
         )
         defocus_value = np.nan if self.probe_defocus_m is None else float(self.probe_defocus_m)
         self.f_para.create_dataset("probe_defocus_m", data=np.array(defocus_value, dtype=np.float64))
+        object_min_mag_value = np.nan if self.object_min_mag is None else float(self.object_min_mag)
+        self.f_para.create_dataset("object_min_mag", data=np.array(object_min_mag_value, dtype=np.float64))
+        object_max_phase_value = np.nan if self.object_max_phase is None else float(self.object_max_phase)
+        self.f_para.create_dataset("object_max_phase", data=np.array(object_max_phase_value, dtype=np.float64))
         self.f_para.create_dataset("probe_position_indexes", data=np.arange(self.positions.shape[0]).astype(int))
         self.f_para.create_dataset("probe_position_x_m", data=self.positions.data[:, 1].detach().cpu().numpy() * self.pixel_size)
         self.f_para.create_dataset("probe_position_y_m", data=self.positions.data[:, 0].detach().cpu().numpy() * self.pixel_size)

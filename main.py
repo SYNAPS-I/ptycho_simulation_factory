@@ -50,8 +50,19 @@ class BatchSimulationTask(MultiprocessMixin):
         
     def build_object_dataset(self):
         object_dataset_class = getattr(dataset, self.config["object_dataset"]["class_name"])
+        kwargs = get_config_without_classname(self.config["object_dataset"])
+        if "object_min_mag_list" in kwargs and kwargs["object_min_mag_list"] is not None:
+            with open(kwargs["object_min_mag_list"], "r") as f:
+                values = [line.strip() for line in f.readlines()]
+            values = [line for line in values if line]
+            kwargs["object_min_mag_list"] = [float(v) for v in values]
+        if "object_max_phase_list" in kwargs and kwargs["object_max_phase_list"] is not None:
+            with open(kwargs["object_max_phase_list"], "r") as f:
+                values = [line.strip() for line in f.readlines()]
+            values = [line for line in values if line]
+            kwargs["object_max_phase_list"] = [float(v) for v in values]
         self.object_dataset = object_dataset_class(
-            **get_config_without_classname(self.config["object_dataset"])
+            **kwargs
         )
         
     def build_probe_dataset(self):
@@ -231,11 +242,17 @@ class BatchSimulationTask(MultiprocessMixin):
         
         for object_ind in pbar:
             object_item = self.object_dataset[object_ind]
-            if isinstance(object_item, tuple) and len(object_item) >= 3:
+            if isinstance(object_item, tuple) and len(object_item) >= 5:
+                object, name, object_file, object_min_mag, object_max_phase = object_item
+            elif isinstance(object_item, tuple) and len(object_item) >= 3:
                 object, name, object_file = object_item
+                object_min_mag = None
+                object_max_phase = None
             else:
                 object, name = object_item
                 object_file = None
+                object_min_mag = None
+                object_max_phase = None
             if self.skip_existing and self.output_exists(name):
                 continue
             
@@ -275,6 +292,8 @@ class BatchSimulationTask(MultiprocessMixin):
                 probe_file=probe_file,
                 object_file=object_file,
                 probe_defocus_m=probe_defocus_m,
+                object_min_mag=object_min_mag,
+                object_max_phase=object_max_phase,
                 add_poisson_noise=self.config["simulator"]["add_poisson_noise"],
                 total_photon_count=self.config["simulator"]["total_photon_count"],
                 verbose=False,

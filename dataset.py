@@ -58,6 +58,8 @@ class ImageNetObjectDataset(ObjectDataset):
         object_size: Optional[tuple[int, int]] = None,
         n_max_object: Optional[int] = None,
         object_file_list: Optional[str] = None,
+        object_min_mag_list: Optional[list[float]] = None,
+        object_max_phase_list: Optional[list[float]] = None,
         *args, **kwargs
     ):
         super().__init__(
@@ -67,6 +69,8 @@ class ImageNetObjectDataset(ObjectDataset):
         )
         self.root_dir = root_dir
         self.object_file_list = object_file_list
+        self.object_min_mag_list = object_min_mag_list
+        self.object_max_phase_list = object_max_phase_list
         if self.object_file_list is not None:
             logger.warning(
                 "object_file_list provided; using listed object files in order "
@@ -111,7 +115,7 @@ class ImageNetObjectDataset(ObjectDataset):
     def __len__(self):
         return len(self.index)
     
-    def __getitem__(self, index) -> tuple[np.ndarray, str, str]:
+    def __getitem__(self, index) -> tuple[np.ndarray, str, str, float, float]:
         """Get the object and its name at the given index.
         """
         obj_path = self.index[index]
@@ -126,10 +130,20 @@ class ImageNetObjectDataset(ObjectDataset):
         if self.object_size is not None:
             obj = ndi.zoom(obj, [1] + [self.object_size[i] / obj.shape[1 + i] for i in range(2)], order=1)
         
-        min_mag = np.random.uniform(*self.random_min_mag_range)
-        phase_range = np.random.uniform(*self.random_phase_range)
+        if self.object_min_mag_list is not None:
+            if len(self.object_min_mag_list) == 0:
+                raise ValueError("object_min_mag_list is empty")
+            min_mag = float(self.object_min_mag_list[index % len(self.object_min_mag_list)])
+        else:
+            min_mag = np.random.uniform(*self.random_min_mag_range)
+        if self.object_max_phase_list is not None:
+            if len(self.object_max_phase_list) == 0:
+                raise ValueError("object_max_phase_list is empty")
+            phase_range = float(self.object_max_phase_list[index % len(self.object_max_phase_list)])
+        else:
+            phase_range = np.random.uniform(*self.random_phase_range)
         obj = create_complex_object(obj, min_mag, phase_range)
-        return obj, os.path.splitext(os.path.basename(obj_path))[0], obj_path
+        return obj, os.path.splitext(os.path.basename(obj_path))[0], obj_path, float(min_mag), float(phase_range)
 
 
 class ProbeDataset(Dataset):
