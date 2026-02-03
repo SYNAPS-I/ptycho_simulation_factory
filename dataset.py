@@ -111,7 +111,7 @@ class ImageNetObjectDataset(ObjectDataset):
     def __len__(self):
         return len(self.index)
     
-    def __getitem__(self, index) -> tuple[np.ndarray, str]:
+    def __getitem__(self, index) -> tuple[np.ndarray, str, str]:
         """Get the object and its name at the given index.
         """
         obj_path = self.index[index]
@@ -129,7 +129,7 @@ class ImageNetObjectDataset(ObjectDataset):
         min_mag = np.random.uniform(*self.random_min_mag_range)
         phase_range = np.random.uniform(*self.random_phase_range)
         obj = create_complex_object(obj, min_mag, phase_range)
-        return obj, os.path.splitext(os.path.basename(obj_path))[0]
+        return obj, os.path.splitext(os.path.basename(obj_path))[0], obj_path
 
 
 class ProbeDataset(Dataset):
@@ -287,7 +287,7 @@ class NpyProbeDataset(ProbeDataset):
     def __len__(self):
         return len(self.index)
         
-    def __getitem__(self, index) -> tuple[np.ndarray, str]:
+    def __getitem__(self, index) -> tuple[np.ndarray, str, Optional[float]]:
         """Get the probe and its source file path at the given index.
         
         Parameters
@@ -297,9 +297,9 @@ class NpyProbeDataset(ProbeDataset):
 
         Returns
         -------
-        tuple[np.ndarray, str]
+        tuple[np.ndarray, str, Optional[float]]
             A (n_opr_modes, n_modes, h, w) array of complex-valued probe and
-            the file path it was loaded from.
+            the file path it was loaded from, plus the defocus distance (if any).
         """
         probe_path = self.index[index]
         if self.probe_file_list is None and not os.path.isabs(probe_path):
@@ -313,11 +313,13 @@ class NpyProbeDataset(ProbeDataset):
             p = p[0:1, ...]
         if self.output_shape is not None:
             p = central_crop_or_pad(p, self.output_shape)
+        defocus_m = None
         if self.probe_defocus_list is not None:
             if len(self.probe_defocus_list) == 0:
                 raise ValueError("probe_defocus_list is empty")
             defocus_m = float(self.probe_defocus_list[index % len(self.probe_defocus_list)])
             p = self.defocus_probe(p, defocus_m)
-        else:
-            p = self.add_random_defocus(p)
-        return p, probe_path
+        elif self.random_defocus_range is not None:
+            defocus_m = float(np.random.uniform(*self.random_defocus_range))
+            p = self.defocus_probe(p, defocus_m)
+        return p, probe_path, defocus_m

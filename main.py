@@ -147,11 +147,16 @@ class BatchSimulationTask(MultiprocessMixin):
             ind = self.get_deterministic_probe_index()
             probe_item = self.probe_dataset[ind]
             if isinstance(probe_item, tuple):
-                probe, probe_file = probe_item
+                if len(probe_item) == 3:
+                    probe, probe_file, probe_defocus_m = probe_item
+                else:
+                    probe, probe_file = probe_item
+                    probe_defocus_m = None
             else:
                 probe = probe_item
                 probe_file = None
-            return probe, probe_file
+                probe_defocus_m = None
+            return probe, probe_file, probe_defocus_m
         if self.sample_probe_randomly:
             p = None
             if self.probe_dataset.name_probability_map is not None:
@@ -174,11 +179,16 @@ class BatchSimulationTask(MultiprocessMixin):
             ind = self.get_deterministic_probe_index()
         probe_item = self.probe_dataset[ind]
         if isinstance(probe_item, tuple):
-            probe, probe_file = probe_item
+            if len(probe_item) == 3:
+                probe, probe_file, probe_defocus_m = probe_item
+            else:
+                probe, probe_file = probe_item
+                probe_defocus_m = None
         else:
             probe = probe_item
             probe_file = None
-        return probe, probe_file
+            probe_defocus_m = None
+        return probe, probe_file, probe_defocus_m
     
     def output_exists(self, name: str) -> bool:
         return (
@@ -197,11 +207,16 @@ class BatchSimulationTask(MultiprocessMixin):
         pbar = tqdm.tqdm(indices, desc=f"Rank {self.rank}")
         
         for object_ind in pbar:
-            object, name = self.object_dataset[object_ind]
+            object_item = self.object_dataset[object_ind]
+            if isinstance(object_item, tuple) and len(object_item) >= 3:
+                object, name, object_file = object_item
+            else:
+                object, name = object_item
+                object_file = None
             if self.skip_existing and self.output_exists(name):
                 continue
             
-            probe, probe_file = self.get_probe()
+            probe, probe_file, probe_defocus_m = self.get_probe()
             
             position_generator = self.create_position_generator()
             positions = position_generator.generate_positions(
@@ -235,6 +250,8 @@ class BatchSimulationTask(MultiprocessMixin):
                 output_dir=os.path.join(self.config["task"]["output_root"]),
                 output_file_prefix=name + "_",
                 probe_file=probe_file,
+                object_file=object_file,
+                probe_defocus_m=probe_defocus_m,
                 add_poisson_noise=self.config["simulator"]["add_poisson_noise"],
                 total_photon_count=self.config["simulator"]["total_photon_count"],
                 verbose=False,

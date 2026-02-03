@@ -35,6 +35,8 @@ class PtychographySimulator:
         output_file_prefix: str = "ptychodus_",
         probe_to_be_in_data_file: Optional[np.ndarray | torch.Tensor] = None,
         probe_file: Optional[str] = None,
+        object_file: Optional[str] = None,
+        probe_defocus_m: Optional[float] = None,
         add_poisson_noise: bool = False,
         total_photon_count: Optional[int] = None,
         verbose: bool = True,
@@ -52,6 +54,8 @@ class PtychographySimulator:
         self.output_file_prefix = output_file_prefix
         self.probe_to_be_in_data_file = probe_to_be_in_data_file
         self.probe_file = probe_file
+        self.object_file = object_file
+        self.probe_defocus_m = probe_defocus_m
         self.add_poisson_noise = add_poisson_noise
         self.total_photon_count = total_photon_count
         self.verbose = verbose
@@ -175,6 +179,13 @@ class PtychographySimulator:
             "probe_file",
             data=np.array(probe_file_value, dtype=h5py.string_dtype(encoding="utf-8")),
         )
+        object_file_value = "" if self.object_file is None else self.object_file
+        self.f_para.create_dataset(
+            "object_file",
+            data=np.array(object_file_value, dtype=h5py.string_dtype(encoding="utf-8")),
+        )
+        defocus_value = np.nan if self.probe_defocus_m is None else float(self.probe_defocus_m)
+        self.f_para.create_dataset("probe_defocus_m", data=np.array(defocus_value, dtype=np.float64))
         self.f_para.create_dataset("probe_position_indexes", data=np.arange(self.positions.shape[0]).astype(int))
         self.f_para.create_dataset("probe_position_x_m", data=self.positions.data[:, 1].detach().cpu().numpy() * self.pixel_size)
         self.f_para.create_dataset("probe_position_y_m", data=self.positions.data[:, 0].detach().cpu().numpy() * self.pixel_size)
