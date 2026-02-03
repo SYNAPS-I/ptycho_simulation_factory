@@ -174,6 +174,10 @@ class ProbeDataset(Dataset):
         self.energy_for_defocusing_kev = energy_for_defocusing_kev
         self.pixel_size_for_defocusing_m = pixel_size_for_defocusing_m
         if self.probe_defocus_list is not None:
+            logger.warning(
+                "probe_defocus_list provided; applying per-index defocus values "
+                "and disabling random_defocus_range_m."
+            )
             self.random_defocus_range = None
         
         self.name_probability_map = name_probability_map
